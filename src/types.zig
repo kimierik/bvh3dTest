@@ -1,9 +1,11 @@
 const std = @import("std");
 
-const raylib = @cImport({
+pub const raylib = @cImport({
     @cInclude("raylib.h");
     @cInclude("raymath.h");
 });
+
+const GameState = @import("state.zig");
 
 const rGenerator = std.rand.DefaultPrng;
 var rnd = rGenerator.init(0);
@@ -42,8 +44,6 @@ pub fn getRandomLocation() Vec3 {
     };
 }
 
-const GameState = @import("state.zig");
-
 pub const cubeSize: Vec3 = .{ 5, 5, 5 };
 
 const Cube = struct {
@@ -76,8 +76,6 @@ pub const ObjectHandle = struct {
     pointer: u16,
 };
 
-// why does max behave differently than min
-// min atleast is somehwat somewhere idk where th fk this is
 pub const BoundingBox = struct {
     // corners of the bb
     min: Vec3,
@@ -87,21 +85,33 @@ pub const BoundingBox = struct {
     pub inline fn center(self: BoundingBox) Vec3 {
         return (self.min + self.max) * @as(Vec3, @splat(0.5));
     }
+    pub inline fn getSize(self: BoundingBox) Vec3 {
+        return self.min - self.max;
+    }
 
     // gets index of largest size in bb
     // x:0 y:1 z:2
-    // i dont know if this works even rn
     pub fn getLongestSide(self: BoundingBox) usize {
-        const size_x = @abs(self.min[0] - self.max[0]);
-        const size_y = @abs(self.min[1] - self.max[1]);
-        const size_z = @abs(self.min[2] - self.max[2]);
+        const sized = self.getSize();
+        const size_x = @abs(sized[0]);
+        const size_y = @abs(sized[1]);
+        const size_z = @abs(sized[2]);
+
         const big = @max(@max(size_x, size_y), size_z);
+
         if (big == size_x) {
             return 0;
         }
+
         if (big == size_y) {
             return 1;
         }
+
+        if (big == size_z) {
+            return 2;
+        }
+
+        // just in case
         return 2;
     }
 
@@ -119,19 +129,14 @@ pub const BoundingBox = struct {
         self.max = @splat(-std.math.floatMax(f32));
     }
 
-    pub fn drawEdges(self: BoundingBox) void {
+    pub fn drawEdges(self: BoundingBox, c: raylib.Color) void {
         const centre = self.center();
-        // this is the problem
-        // we need to get the size of the thing not use cubesize
-        raylib.DrawCubeWiresV(convVec(centre), convVec(self.min - self.max), raylib.PINK);
+        raylib.DrawCubeWiresV(convVec(centre), convVec(self.min - self.max), c);
     }
 
-    // bb is size of the cuve
-    // how the fk do we do grow to inc
     fn growToIncCube(self: *BoundingBox, cube: Cube) void {
-        self.min = @min(self.min, cube.pos - cubeSize);
-        self.max = @max(self.max, cube.pos + cubeSize);
-        //self.max = raylib.Vector3Max(self.max, raylib.Vector3Add(convVec(cube.pos), cubeSize));
+        self.min = @min(self.min, cube.pos - cubeSize / @as(Vec3, @splat(2)));
+        self.max = @max(self.max, cube.pos + cubeSize / @as(Vec3, @splat(2)));
     }
 
     pub fn growToInc(self: *BoundingBox, obj: ObjectHandle) void {

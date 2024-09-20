@@ -18,7 +18,7 @@ const GameState = @import("state.zig");
 const WINDOW_W = 1000;
 const WINDOW_H = 800;
 
-const NUM_OF_OBJ = 5;
+const NUM_OF_OBJ = 30;
 
 inline fn convVec(v: Vec3) raylib.Vector3 {
     return .{
@@ -35,11 +35,6 @@ inline fn convRVec(v: raylib.Vector3) Vec3 {
         v.z,
     };
 }
-
-// something is wrong
-// it seems like we are not splitting as much as we should be
-// i do not know if it splits but the rect is equal to the parent
-// i need to fix this
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -76,7 +71,7 @@ pub fn main() !void {
     raylib.DisableCursor();
     //raylib.SetTargetFPS(60);
     //
-    ////GameState.gameState.bhv.prettyPrint(0);
+    //GameState.gameState.bhv.prettyPrint(0);
 
     while (!raylib.WindowShouldClose()) {
         raylib.UpdateCamera(&camera, camMode);
@@ -98,7 +93,7 @@ pub fn main() !void {
                 raylib.DrawCube(convVec(obj.mesh.pos), types.cubeSize[0], types.cubeSize[0], types.cubeSize[0], raylib.GREEN);
                 //obj.bb.drawEdges();
             }
-            GameState.gameState.bhv.draw();
+            GameState.gameState.bhv.draw(0);
         }
         //
 
