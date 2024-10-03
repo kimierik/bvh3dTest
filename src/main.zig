@@ -1,13 +1,11 @@
 const std = @import("std");
 
-const raylib = @cImport({
-    @cInclude("raylib.h");
-});
-
 const bhv = @import("bhv.zig");
 const BhvNode = bhv.BhvNode;
 
 const types = @import("types.zig");
+const raylib = types.raylib;
+
 const ObjectHandle = types.ObjectHandle;
 const Object = types.Object;
 const BoundingBox = types.BoundingBox;
@@ -58,6 +56,9 @@ pub fn main() !void {
     raylib.InitWindow(WINDOW_W, WINDOW_H, "game window");
     defer raylib.CloseWindow();
 
+    var player = types.Entity.init(.{ 0.0, 2.0, 4.0 }, .{ 1, 1, 1 });
+    player.updateBB();
+
     var camera: raylib.Camera = .{
         .position = raylib.Vector3{ .x = 0.0, .y = 2.0, .z = 4.0 },
         .target = raylib.Vector3{ .x = 0.0, .y = 2.0, .z = 0.0 },
@@ -66,15 +67,25 @@ pub fn main() !void {
         .projection = raylib.CAMERA_PERSPECTIVE,
     };
 
-    const camMode = raylib.CAMERA_FIRST_PERSON;
-
     raylib.DisableCursor();
-    //raylib.SetTargetFPS(60);
-    //
-    //GameState.gameState.bhv.prettyPrint(0);
+    var pool: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 
     while (!raylib.WindowShouldClose()) {
-        raylib.UpdateCamera(&camera, camMode);
+        player.handleMovement(&pool, &camera);
+        _ = pool.reset(.retain_capacity);
+
+        raylib.UpdateCameraPro(
+            &camera,
+            convVec(@splat(0)),
+            raylib.Vector3{
+                .x = raylib.GetMouseDelta().x * 0.05,
+                .y = raylib.GetMouseDelta().y * 0.05,
+                .z = 0.0,
+            },
+            0,
+        );
+
+        camera.position = convVec(player.pos);
 
         raylib.BeginDrawing();
         defer raylib.EndDrawing();
@@ -94,6 +105,8 @@ pub fn main() !void {
                 //obj.bb.drawEdges();
             }
             GameState.gameState.bhv.draw(0);
+
+            player.bb.drawEdges(types.raylib.RED);
         }
         //
 

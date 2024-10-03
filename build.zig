@@ -14,6 +14,14 @@ pub fn build(b: *std.Build) void {
 
     const raylib = b.dependency("raylib", .{ .target = target, .optimize = optimize });
 
+    // debugging shit
+    //const dir_path = raylib.path("src").getPath(b);
+    //std.debug.print("{u}\n", .{dir_path});
+
+    // without this we cannot find rcamera.h
+    // this is a mistake in raylib.build.zig
+    exe.addIncludePath(raylib.path("src"));
+
     exe.linkLibrary(raylib.artifact("raylib"));
     b.installArtifact(exe);
 

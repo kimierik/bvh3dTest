@@ -80,6 +80,39 @@ pub const BhvNode = struct {
         self.bb.growToInc(obj);
     }
 
+    pub fn queryBB(self: BhvNode, bb: types.BoundingBox, allocator: std.mem.Allocator) ?std.ArrayList(types.ObjectHandle) {
+        // if this does not intersect we just return
+        if (!self.bb.intersects(bb)) {
+            return null;
+        }
+
+        // we are inside and is last node... return all handles
+        if (!self.is_divided) {
+            return self.handles;
+        }
+
+        // we are inside but we have children
+        // so get items from children
+
+        var list = std.ArrayList(types.ObjectHandle).init(allocator);
+        const l = self.left.queryBB(bb, allocator);
+        const r = self.right.queryBB(bb, allocator);
+
+        if (r) |items| {
+            for (items.items) |item| {
+                list.append(item) catch unreachable;
+            }
+        }
+
+        if (l) |items| {
+            for (items.items) |item| {
+                list.append(item) catch unreachable;
+            }
+        }
+
+        return list;
+    }
+
     // make children..
     pub fn divide(self: *BhvNode, allocator: std.mem.Allocator, depth: u8) !void {
         if (depth >= MAX_DEPTH)

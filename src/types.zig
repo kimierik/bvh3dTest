@@ -1,9 +1,13 @@
 const std = @import("std");
 
 pub const raylib = @cImport({
+    @cDefine("SUPPORT_CAMERA_SYSTEM", "1");
     @cInclude("raylib.h");
     @cInclude("raymath.h");
+    @cInclude("rcamera.h");
 });
+
+const rc = raylib;
 
 const GameState = @import("state.zig");
 
@@ -89,6 +93,20 @@ pub const BoundingBox = struct {
         return self.min - self.max;
     }
 
+    //
+    //box1 = (x:(xmin1,xmax1),y:(ymin1,ymax1),z:(zmin1,zmax1))
+    //box2 = (x:(xmin2,xmax2),y:(ymin2,ymax2),z:(zmin2,zmax2))
+    //isOverlapping3D(box1,box2) =
+    //(box1.max.x >= box2.min.x and box2.max.x >= box1.min.x) and
+    //                            (box1.max.y >= box2.min.y and box2.max.y >= box1.min.y)and
+    //:width                           (box1.max.z >= box2.min.z and box2.max.z >= box1.min.z)
+    pub fn intersects(self: BoundingBox, other: BoundingBox) bool {
+        // should work???
+        return (self.max[0] >= other.min[0] and other.max[0] >= self.min[0]) and
+            (self.max[1] >= other.min[1] and other.max[1] >= self.min[1]) and
+            (self.max[2] >= other.min[2] and other.max[2] >= self.min[2]);
+    }
+
     // gets index of largest size in bb
     // x:0 y:1 z:2
     pub fn getLongestSide(self: BoundingBox) usize {
@@ -141,5 +159,98 @@ pub const BoundingBox = struct {
 
     pub fn growToInc(self: *BoundingBox, obj: ObjectHandle) void {
         self.growToIncCube(GameState.gameState.getObject(obj).mesh);
+    }
+};
+
+// player entity
+pub const Entity = struct {
+    const Self = @This();
+
+    pos: Vec3,
+    rotation: Vec3,
+    velocity: Vec3,
+    acceleration: Vec3,
+
+    bb: BoundingBox,
+    size: Vec3,
+
+    //
+    pub fn init(pos: Vec3, size: Vec3) Self {
+        return Self{
+            .pos = pos,
+            .rotation = @splat(0),
+            .size = size,
+            .velocity = @splat(0),
+            .acceleration = @splat(0),
+            .bb = BoundingBox.init(), // ?
+        };
+    }
+
+    /// updates bb to move with position
+    pub fn updateBB(self: *Self) void {
+        self.bb.min = self.pos - self.size;
+        self.bb.max = self.pos + self.size;
+    }
+
+    fn getUpdatedBB(self: Self, offset: Vec3) BoundingBox {
+        return .{
+            .min = self.pos + offset - self.size,
+            .max = self.pos + offset + self.size,
+        };
+    }
+
+    pub fn handleMovement(self: *Self, arena: *std.heap.ArenaAllocator, camera: *raylib.Camera) void {
+        const movement_speed: Vec3 = @splat(2);
+
+        const forwardVec = convRVec(rc.GetCameraForward(camera));
+        const sidewayVec = convRVec(rc.GetCameraRight(camera));
+        // movement vector
+        var mvec: Vec3 = @splat(0);
+
+        const allocator = arena.allocator();
+
+        // currenlyt no momentum
+        self.velocity = @splat(0);
+        self.acceleration = @splat(0);
+
+        if (raylib.IsKeyDown(raylib.KEY_W)) {
+            mvec += forwardVec * movement_speed;
+        }
+
+        if (raylib.IsKeyDown(raylib.KEY_S)) {
+            mvec += forwardVec * -movement_speed;
+        }
+
+        if (raylib.IsKeyDown(raylib.KEY_A)) {
+            mvec += sidewayVec * -movement_speed;
+        }
+
+        if (raylib.IsKeyDown(raylib.KEY_D)) {
+            mvec += sidewayVec * movement_speed;
+        }
+
+        self.acceleration += mvec;
+
+        self.velocity += self.acceleration * @as(Vec3, @splat(raylib.GetFrameTime()));
+
+        const ubb = self.getUpdatedBB(self.velocity);
+        const objsL = GameState.gameState.bhv.queryBB(ubb, allocator);
+
+        if (objsL) |objs| {
+            for (objs.items) |handle| {
+                const ob = GameState.gameState.getObject(handle);
+                // if ob intersect with the self bb then we collided and we should not do move
+                if (ob.bb.intersects(ubb)) {
+                    // we have collided with the thing
+                    // currently stop all movement
+                    self.velocity = @splat(0);
+                    return;
+                }
+            }
+        }
+        // move
+        self.pos += self.velocity;
+        camera.target = raylib.Vector3Add(camera.target, convVec(self.velocity));
+        self.updateBB();
     }
 };
